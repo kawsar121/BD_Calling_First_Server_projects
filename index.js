@@ -6,32 +6,60 @@ const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const cookieParser = require("cookie-parser");
 const port = process.env.PORT || 5000;
+
+// for any route request
+// app.use(cors())
 app.use(
   cors({
     origin: [
       "http://localhost:5173",
-      "https://kb-cosmetics-products.netlify.app"],
-      credentials: true,
-  })
+      "https://kb-cosmetics-products.netlify.app",
+    ],
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  }),
 );
 app.use(express.json());
+// app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
+// const verifyToken = (req, res, next) => {
+//   console.log("verify success");
+//   const token = req.cookies?.token;
+//   console.log(token);
+//   if (!token) {
+//     return res.status(401).send({ message: "UnAuthorisez" });
+//   }
+//   jwt.verify(token, process.env.JWTTOKEN, (err, decoded) => {
+//     if (err) {
+//       return res.status(401).send({ message: "UnAuthorized" });
+//     }
+//     req.user = decoded;
+//     next();
+//   });
+// };
+
+
 const verifyToken = (req, res, next) => {
-  console.log("verify success");
-  const token = req.cookies?.token;
-  console.log(token);
+  const token = req.cookies.token;
+
   if (!token) {
-    return res.status(401).send({ message: "UnAuthorisez" });
+    return res.status(401).send({ message: "Unauthorized Access" });
   }
+
   jwt.verify(token, process.env.JWTTOKEN, (err, decoded) => {
     if (err) {
-      return res.status(401).send({ message: "UnAuthorized" });
+      return res.status(401).send({ message: "Unauthorized Access" });
     }
     req.user = decoded;
     next();
   });
 };
+
+
+
+
 
 const uri = `mongodb+srv://${process.env.DBUSER}:${process.env.DBPASS}@cluster0.nfpubcd.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -58,11 +86,15 @@ async function run() {
     app.post("/jwt", (req, res) => {
       const user = req.body;
       const token = jwt.sign(user, process.env.JWTTOKEN, { expiresIn: "1h" });
-      res
-        .cookie("token", token, {
+
+      res.cookie("token", token, {
           httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+          // secure: process.env.NODE_ENV === "production",
+          // sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+          httpOnly: true,
+          secure: true,
+          sameSite: "none",
+          path: "/",
         })
         .send({ success: true });
     });
@@ -70,9 +102,13 @@ async function run() {
     app.post("/logout", (req, res) => {
       res
         .clearCookie("token", {
+          // httpOnly: true,
+          // secure: process.env.NODE_ENV === "production",
+          // sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
           httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+          secure: true,
+          sameSite: "none",
+          path: "/",
         })
         .send({ success: true });
     });
