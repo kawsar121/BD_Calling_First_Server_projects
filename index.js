@@ -166,11 +166,15 @@ async function run() {
     const allCartCollection = client.db("cartDB").collection("addtoCart");
 
     // Cart Post
-    app.post("/cart", async (req, res) => {
-      const addCart = req.body;
-      const result = await allCartCollection.insertOne(addCart);
-      res.send(result);
-    });
+    app.post("/cart", verifyToken, async (req, res) => {
+  const cartItem = {
+    ...req.body,
+    email: req.user.email,
+  };
+
+  const result = await allCartCollection.insertOne(cartItem);
+  res.send(result);
+});
     //Cart Get
     app.get("/cart", verifyToken, async (req, res) => {
       const email = req.query.email;
