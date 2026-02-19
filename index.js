@@ -177,14 +177,11 @@ async function run() {
 });
     //Cart Get
     app.get("/cart", verifyToken, async (req, res) => {
-      const email = req.query.email;
-      const quary = { email: email };
-      if (req.user.email !== req.query.email) {
-        return res.status(403).send({ message: "forbidden" });
-      }
-      const result = await allCartCollection.find(quary).toArray();
-      res.send(result);
-    });
+  const email = req.user.email; // get email from JWT
+  const result = await allCartCollection.find({ email }).toArray();
+  res.send(result);
+});
+
     console.log("first");
     // Delete
     app.delete("/cart/:id", verifyToken, async (req, res) => {
