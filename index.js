@@ -190,16 +190,6 @@ async function run() {
       res.send(result);
     });
 
-
-
-
-
-
-
-
-
-
-
     // Mail Adress Add
     const transporter = nodemailer.createTransport({
       service: "gmail",
@@ -209,22 +199,20 @@ async function run() {
       },
     });
 
-
-
     // New Collection for Payment
     const paymentCollection = client.db("paymentDB").collection("paymentCart");
     // Post
     app.post("/payment", async (req, res) => {
-  const order = req.body;
+      const order = req.body;
 
-  const result = await paymentCollection.insertOne(order);
+      const result = await paymentCollection.insertOne(order);
 
-  // Email Receipt
-  const mailOptions = {
-    from: process.env.EMAIL,
-    to: order.email,
-    subject: "KB Cosmetics - Order Received",
-    html: `
+      // Email Receipt
+      const mailOptions = {
+        from: process.env.EMAIL,
+        to: order.email,
+        subject: "KB Cosmetics - Order Received",
+        html: `
       <h2>Thank you for your order, ${order.name}!</h2>
       <p>We have received your order.</p>
 
@@ -240,47 +228,42 @@ async function run() {
       <br/>
       <p>KB Cosmetics Shop</p>
     `,
-  };
+      };
 
-  await transporter.sendMail(mailOptions);
+      await transporter.sendMail(mailOptions);
 
-  res.send({ success: true });
-});
+      res.send({ success: true });
+    });
 
+    // Get all orders (Admin)
+    app.get("/orders", async (req, res) => {
+      const result = await paymentCollection
+        .find()
+        .sort({ date: -1 })
+        .toArray();
 
+      res.send(result);
+    });
 
-// Get all orders (Admin)
-app.get("/orders", async (req, res) => {
-  const result = await paymentCollection
-    .find()
-    .sort({ date: -1 })
-    .toArray();
+    app.patch("/orders/:id", verifyToken, verifyAdmin, async (req, res) => {
+      try {
+        const id = req.params.id;
+        const { status } = req.body;
 
-  res.send(result);
-});
+        const filter = { _id: new ObjectId(id) };
+        const update = { $set: { status: status } };
 
+        await paymentCollection.updateOne(filter, update);
 
+        const order = await paymentCollection.findOne(filter);
 
-
-app.patch("/orders/:id", verifyToken, verifyAdmin, async (req, res) => {
-  try {
-    const id = req.params.id;
-    const { status } = req.body;
-
-    const filter = { _id: new ObjectId(id) };
-    const update = { $set: { status: status } };
-
-    await paymentCollection.updateOne(filter, update);
-
-    const order = await paymentCollection.findOne(filter);
-
-    // send confirmation email
-    if (status === "approved") {
-      const mailOptions = {
-        from: process.env.EMAIL,
-        to: order.email,
-        subject: "KB Cosmetics - Payment Confirmed 🎉",
-        html: `
+        // send confirmation email
+        if (status === "approved") {
+          const mailOptions = {
+            from: process.env.EMAIL,
+            to: order.email,
+            subject: "KB Cosmetics - Payment Confirmed 🎉",
+            html: `
           <h2>Hello ${order.name}</h2>
           <p>Your payment has been verified successfully.</p>
 
@@ -291,73 +274,70 @@ app.patch("/orders/:id", verifyToken, verifyAdmin, async (req, res) => {
           <br/>
           <b>KB Cosmetics Shop</b>
         `,
-      };
+          };
 
-      await transporter.sendMail(mailOptions);
-    }
+          await transporter.sendMail(mailOptions);
+        }
 
-    res.send({ success: true });
-  } catch (err) {
-    res.status(500).send({ message: "Update failed" });
-  }
-});
+        res.send({ success: true });
+      } catch (err) {
+        res.status(500).send({ message: "Update failed" });
+      }
+    });
 
+    // Add Security issue
+    const token = jwt.sign(
+      { email: user.email, role: "admin" },
+      process.env.JWTTOKEN,
+      { expiresIn: "1h" },
+    );
 
-// Add Security issue
-const token = jwt.sign({ email: user.email, role: "admin" }, process.env.JWTTOKEN, { expiresIn: "1h" });
+    const verifyAdmin = (req, res, next) => {
+      if (!req.user || req.user.role !== "admin") {
+        return res
+          .status(403)
+          .send({ message: "Forbidden Access (Admin Only)" });
+      }
+      next();
+    };
 
+    app.post("/jwt", (req, res) => {
+      const user = req.body;
 
-const verifyAdmin = (req, res, next) => {
-  if (!req.user || req.user.role !== "admin") {
-    return res.status(403).send({ message: "Forbidden Access (Admin Only)" });
-  }
-  next();
-};
+      // admin email
+      const adminEmail = "tohidulislamkawsarbhuiyan@gmail.com";
 
+      const role = user.email === adminEmail ? "admin" : "user";
 
-app.post("/jwt", (req, res) => {
-  const user = req.body;
+      const token = jwt.sign(
+        { email: user.email, role: role },
+        process.env.JWTTOKEN,
+        { expiresIn: "1h" },
+      );
 
-  // admin email
-  const adminEmail = "tohidulislamkawsarbhuiyan@gmail.com";
+      res
+        .cookie("token", token, {
+          httpOnly: true,
+          secure: true,
+          sameSite: "none",
+          path: "/",
+        })
+        .send({ success: true, role });
+    });
 
-  const role = user.email === adminEmail ? "admin" : "user";
+    app.get("/orders", verifyToken, verifyAdmin, async (req, res) => {
+      try {
+        const orders = await paymentCollection
+          .find()
+          .sort({ date: -1 })
+          .toArray();
 
-  const token = jwt.sign(
-    { email: user.email, role: role },
-    process.env.JWTTOKEN,
-    { expiresIn: "1h" }
-  );
-
-  res.cookie("token", token, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "none",
-    path: "/",
-  }).send({ success: true, role });
-});
-
-
-app.get("/orders", verifyToken, verifyAdmin, async (req, res) => {
-  try {
-    const orders = await paymentCollection
-      .find()
-      .sort({ date: -1 })
-      .toArray();
-
-    res.send(orders);
-  } catch (error) {
-    console.error(error);
-    res.status(500).send({ message: "Failed to fetch orders" });
-  }
-});
-
-
-
-
-
-
-
+        res.send(orders);
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ message: "Failed to fetch orders" });
+      }
+    });
 
     // Send a ping to confirm a successful connection
     // await client.db("admin").command({ ping: 1 });
