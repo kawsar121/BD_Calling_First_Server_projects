@@ -4,6 +4,7 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const app = express();
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
+const nodemailer = require("nodemailer");
 const cookieParser = require("cookie-parser");
 const port = process.env.PORT || 5000;
 
@@ -40,7 +41,6 @@ app.use(cookieParser());
 //   });
 // };
 
-
 const verifyToken = (req, res, next) => {
   const token = req.cookies.token;
 
@@ -56,10 +56,6 @@ const verifyToken = (req, res, next) => {
     next();
   });
 };
-
-
-
-
 
 const uri = `mongodb+srv://${process.env.DBUSER}:${process.env.DBPASS}@cluster0.nfpubcd.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -87,7 +83,8 @@ async function run() {
       const user = req.body;
       const token = jwt.sign(user, process.env.JWTTOKEN, { expiresIn: "1h" });
 
-      res.cookie("token", token, {
+      res
+        .cookie("token", token, {
           httpOnly: true,
           // secure: process.env.NODE_ENV === "production",
           // sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
@@ -193,14 +190,174 @@ async function run() {
       res.send(result);
     });
 
+
+
+
+
+
+
+
+
+
+
+    // Mail Adress Add
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+
+
+
     // New Collection for Payment
     const paymentCollection = client.db("paymentDB").collection("paymentCart");
     // Post
     app.post("/payment", async (req, res) => {
-      const body = req.body;
-      const result = await paymentCollection.insertOne(body);
-      res.send(result);
-    });
+  const order = req.body;
+
+  const result = await paymentCollection.insertOne(order);
+
+  // Email Receipt
+  const mailOptions = {
+    from: process.env.EMAIL,
+    to: order.email,
+    subject: "KB Cosmetics - Order Received",
+    html: `
+      <h2>Thank you for your order, ${order.name}!</h2>
+      <p>We have received your order.</p>
+
+      <h3>Payment Information</h3>
+      <p><b>Transaction ID:</b> ${order.trxid}</p>
+      <p><b>Total Amount:</b> ৳ ${order.totalPrice}</p>
+
+      <h3>Shipping Address</h3>
+      <p>${order.address}</p>
+
+      <p>We will verify your bKash payment and confirm soon.</p>
+
+      <br/>
+      <p>KB Cosmetics Shop</p>
+    `,
+  };
+
+  await transporter.sendMail(mailOptions);
+
+  res.send({ success: true });
+});
+
+
+
+// Get all orders (Admin)
+app.get("/orders", async (req, res) => {
+  const result = await paymentCollection
+    .find()
+    .sort({ date: -1 })
+    .toArray();
+
+  res.send(result);
+});
+
+
+
+
+app.patch("/orders/:id", verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const { status } = req.body;
+
+    const filter = { _id: new ObjectId(id) };
+    const update = { $set: { status: status } };
+
+    await paymentCollection.updateOne(filter, update);
+
+    const order = await paymentCollection.findOne(filter);
+
+    // send confirmation email
+    if (status === "approved") {
+      const mailOptions = {
+        from: process.env.EMAIL,
+        to: order.email,
+        subject: "KB Cosmetics - Payment Confirmed 🎉",
+        html: `
+          <h2>Hello ${order.name}</h2>
+          <p>Your payment has been verified successfully.</p>
+
+          <p><b>Total:</b> ৳ ${order.totalPrice}</p>
+          <p><b>Transaction ID:</b> ${order.trxid}</p>
+
+          <p>Your order is now being prepared for delivery 🚚</p>
+          <br/>
+          <b>KB Cosmetics Shop</b>
+        `,
+      };
+
+      await transporter.sendMail(mailOptions);
+    }
+
+    res.send({ success: true });
+  } catch (err) {
+    res.status(500).send({ message: "Update failed" });
+  }
+});
+
+
+// Add Security issue
+const token = jwt.sign({ email: user.email, role: "admin" }, process.env.JWTTOKEN, { expiresIn: "1h" });
+
+
+const verifyAdmin = (req, res, next) => {
+  if (!req.user || req.user.role !== "admin") {
+    return res.status(403).send({ message: "Forbidden Access (Admin Only)" });
+  }
+  next();
+};
+
+
+app.post("/jwt", (req, res) => {
+  const user = req.body;
+
+  // admin email
+  const adminEmail = "tohidulislamkawsarbhuiyan@gmail.com";
+
+  const role = user.email === adminEmail ? "admin" : "user";
+
+  const token = jwt.sign(
+    { email: user.email, role: role },
+    process.env.JWTTOKEN,
+    { expiresIn: "1h" }
+  );
+
+  res.cookie("token", token, {
+    httpOnly: true,
+    secure: true,
+    sameSite: "none",
+    path: "/",
+  }).send({ success: true, role });
+});
+
+
+app.get("/orders", verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const orders = await paymentCollection
+      .find()
+      .sort({ date: -1 })
+      .toArray();
+
+    res.send(orders);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ message: "Failed to fetch orders" });
+  }
+});
+
+
+
+
+
+
+
 
     // Send a ping to confirm a successful connection
     // await client.db("admin").command({ ping: 1 });
