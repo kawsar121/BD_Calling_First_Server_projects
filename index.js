@@ -230,92 +230,91 @@ async function run() {
 
 
 
-// Payment Post Route
-app.post("/payment", verifyToken, async (req, res) => {
-  try {
-    const order = {
-      ...req.body,
-      email: req.user.email,
-      status: "pending", // new orders always start as pending
-      date: new Date(),
-    };
+app.post("/payment", async (req, res) => {
+  const order = req.body;
 
-    const result = await paymentCollection.insertOne(order);
+  const result = await paymentCollection.insertOne(order);
 
-    // Email Receipt
+  // Email Receipt
+  const mailOptions = {
+    from: process.env.EMAIL,
+    to: order.email,
+    subject: "KB Cosmetics - Order Received",
+    html: `
+      <h2>Thank you for your order, ${order.name}!</h2>
+      <p>We have received your order.</p>
+
+      <h3>Payment Information</h3>
+      <p><b>Transaction ID:</b> ${order.trxid}</p>
+      <p><b>Total Amount:</b> ৳ ${order.totalPrice}</p>
+
+      <h3>Shipping Address</h3>
+      <p>${order.address}</p>
+
+      <p>We will verify your bKash payment and confirm soon.</p>
+
+      <br/>
+      <p>KB Cosmetics Shop</p>
+    `,
+  };
+
+  await transporter.sendMail(mailOptions);
+
+  res.send({ success: true });
+});
+
+
+// Get all orders (Admin)
+app.get("/orders", async (req, res) => {
+  const result = await paymentCollection
+    .find()
+    .sort({ date: -1 })
+    .toArray();
+
+  res.send(result);
+});
+
+
+app.patch("/orders/:id", async (req, res) => {
+  const id = req.params.id;
+  const { status } = req.body;
+
+  const filter = { _id: new ObjectId(id) };
+  const update = {
+    $set: { status: status },
+  };
+
+  const result = await paymentCollection.updateOne(filter, update);
+
+  // order info
+  const order = await paymentCollection.findOne(filter);
+
+  // Send confirmation email if approved
+  if (status === "approved") {
     const mailOptions = {
       from: process.env.EMAIL,
       to: order.email,
-      subject: "KB Cosmetics - Order Received",
+      subject: "KB Cosmetics - Payment Confirmed 🎉",
       html: `
-        <h2>Thank you for your order, ${order.name}!</h2>
-        <p>We have received your order.</p>
-        <p><b>Total:</b> ৳ ${order.totalPrice}</p>
+        <h2>Hello ${order.name}</h2>
+        <p>Your payment has been successfully verified.</p>
+
+        <h3>Order Details</h3>
+        <p><b>Total Amount:</b> ৳ ${order.totalPrice}</p>
         <p><b>Transaction ID:</b> ${order.trxid}</p>
-        <p>Status: ${order.status}</p>
-        <p>We will verify your payment and confirm soon.</p>
+
+        <p>Your order is now being processed for delivery 🚚</p>
+
         <br/>
-        <p>KB Cosmetics Shop</p>
+        <b>KB Cosmetics Shop</b>
       `,
     };
 
     await transporter.sendMail(mailOptions);
-
-    res.send({ success: true, orderId: result.insertedId });
-  } catch (err) {
-    console.error("Payment failed:", err);
-    res.status(500).send({ message: "Payment failed" });
   }
+
+  res.send(result);
 });
-
-// Get All Orders (Admin)
-app.get("/orders", verifyToken, verifyAdmin, async (req, res) => {
-  try {
-    const orders = await paymentCollection.find().sort({ date: -1 }).toArray();
-    res.send(orders);
-  } catch (err) {
-    console.error(err);
-    res.status(500).send({ message: "Failed to fetch orders" });
-  }
-});
-
-// Update Order Status (Admin)
-app.patch("/orders/:id", verifyToken, verifyAdmin, async (req, res) => {
-  try {
-    const id = req.params.id;
-    const { status } = req.body; // pending / approved / success
-
-    const filter = { _id: new ObjectId(id) };
-    await paymentCollection.updateOne(filter, { $set: { status } });
-
-    const order = await paymentCollection.findOne(filter);
-
-    // Send email if approved
-    if (status === "approved" || status === "success") {
-      const mailOptions = {
-        from: process.env.EMAIL,
-        to: order.email,
-        subject: `KB Cosmetics - Order ${status}`,
-        html: `
-          <h2>Hello ${order.name}</h2>
-          <p>Your order status has been updated to <b>${status}</b></p>
-          <p><b>Total:</b> ৳ ${order.totalPrice}</p>
-          <p><b>Transaction ID:</b> ${order.trxid}</p>
-          <br/>
-          <b>KB Cosmetics Shop</b>
-        `,
-      };
-
-      await transporter.sendMail(mailOptions);
-    }
-
-    res.send({ success: true });
-  } catch (err) {
-    console.error(err);
-    res.status(500).send({ message: "Failed to update status" });
-  }
-});
-
 
 
 
