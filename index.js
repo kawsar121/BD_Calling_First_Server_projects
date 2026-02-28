@@ -57,6 +57,15 @@ const verifyToken = (req, res, next) => {
   });
 };
 
+// Admin check middleware
+const verifyAdmin = async (req, res, next) => {
+  const email = req.decoded.email;
+  const user = await usersCollection.findOne({ email });
+  if (!user || user.role !== "admin")
+    return res.status(403).send({ message: "Forbidden" });
+  next();
+};
+
 const uri = `mongodb+srv://${process.env.DBUSER}:${process.env.DBPASS}@cluster0.nfpubcd.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -298,6 +307,53 @@ async function run() {
 
       res.send(result);
     });
+
+    // Admin Section
+    // Admin: All orders
+    app.get("/admin/orders", verifyToken, verifyAdmin, async (req, res) => {
+      const result = await paymentCollection
+        .find()
+        .sort({ date: -1 })
+        .toArray();
+      res.send(result);
+    });
+
+    // Admin: Update order
+    app.patch(
+      "/admin/orders/:id",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req.params.id;
+        const update = { $set: req.body };
+        const result = await paymentCollection.updateOne(
+          { _id: new ObjectId(id) },
+          update,
+        );
+        res.send(result);
+      },
+    );
+
+    // Admin: Users
+    app.get("/admin/users", verifyToken, verifyAdmin, async (req, res) => {
+      const result = await usersCollection.find().toArray();
+      res.send(result);
+    });
+
+    app.patch(
+      "/admin/users/:id",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req.params.id;
+        const update = { $set: req.body };
+        const result = await usersCollection.updateOne(
+          { _id: new ObjectId(id) },
+          update,
+        );
+        res.send(result);
+      },
+    );
 
     // Send a ping to confirm a successful connection
     // await client.db("admin").command({ ping: 1 });
