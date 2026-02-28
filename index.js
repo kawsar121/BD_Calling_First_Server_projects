@@ -311,6 +311,8 @@ async function run() {
     // Admin Section
     // Admin: All orders
     // backend/index.js
+
+    const usersCollection = client.db("adminDB").collection("users");
     app.get("/admin/check-admin", verifyToken, async (req, res) => {
       const email = req.query.email;
       const user = await userCollection.findOne({ email }); // userCollection আপনার user DB
