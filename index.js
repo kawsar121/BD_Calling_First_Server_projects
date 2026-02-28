@@ -203,7 +203,7 @@ async function run() {
     // New Collection for Payment
     const paymentCollection = client.db("paymentDB").collection("paymentCart");
     // Post
-    app.post("/payment", async (req, res) => {
+    app.post("/payments", async (req, res) => {
       const body = req.body;
       const result = await paymentCollection.insertOne(body);
       res.send(result);
