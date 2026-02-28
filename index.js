@@ -310,6 +310,14 @@ async function run() {
 
     // Admin Section
     // Admin: All orders
+    // backend/index.js
+    app.get("/admin/check-admin", verifyToken, async (req, res) => {
+      const email = req.query.email;
+      const user = await userCollection.findOne({ email }); // userCollection আপনার user DB
+      if (user?.role === "admin") return res.send({ isAdmin: true });
+      res.send({ isAdmin: false });
+    });
+
     app.get("/admin/orders", verifyToken, verifyAdmin, async (req, res) => {
       const result = await paymentCollection
         .find()
