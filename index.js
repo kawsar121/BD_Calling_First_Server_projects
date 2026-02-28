@@ -312,7 +312,19 @@ async function run() {
     // Admin: All orders
     // backend/index.js
 
-    const usersCollection = client.db("adminDB").collection("users");
+    const userCollection = client.db("adminDB").collection("users");
+
+    app.post("/users", async (req, res) => {
+      const body = {
+        name: "Super Admin",
+        email: "kawsar121@gmail.com",
+        password: "developerkawsar1234@",
+        role: "admin",
+      };
+      console.log(body);
+      const result = await userCollection.insertOne(body); // ✅ ঠিক হয়েছে
+      res.send(result);
+    });
     app.get("/admin/check-admin", verifyToken, async (req, res) => {
       const email = req.query.email;
       const user = await userCollection.findOne({ email }); // userCollection আপনার user DB
