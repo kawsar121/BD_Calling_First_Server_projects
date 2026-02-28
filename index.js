@@ -41,7 +41,6 @@ app.use(cookieParser());
 //   });
 // };
 
-
 const verifyToken = (req, res, next) => {
   const token = req.cookies.token;
 
@@ -57,10 +56,6 @@ const verifyToken = (req, res, next) => {
     next();
   });
 };
-
-
-
-
 
 const uri = `mongodb+srv://${process.env.DBUSER}:${process.env.DBPASS}@cluster0.nfpubcd.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -88,7 +83,8 @@ async function run() {
       const user = req.body;
       const token = jwt.sign(user, process.env.JWTTOKEN, { expiresIn: "1h" });
 
-      res.cookie("token", token, {
+      res
+        .cookie("token", token, {
           httpOnly: true,
           // secure: process.env.NODE_ENV === "production",
           // sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
@@ -194,30 +190,15 @@ async function run() {
       res.send(result);
     });
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        // Addd bkash
-
+    // Addd bkash
 
     const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL,
-    pass: process.env.EMAIL_PASS,
-  },
-});
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
 
     // New Collection for Payment
     const paymentCollection = client.db("paymentDB").collection("paymentCart");
@@ -228,19 +209,17 @@ async function run() {
       res.send(result);
     });
 
+    app.post("/payment", async (req, res) => {
+      const order = req.body;
 
+      const result = await paymentCollection.insertOne(order);
 
-app.post("/payment", async (req, res) => {
-  const order = req.body;
-
-  const result = await paymentCollection.insertOne(order);
-
-  // Email Receipt
-  const mailOptions = {
-    from: process.env.EMAIL,
-    to: order.email,
-    subject: "KB Cosmetics - Order Received",
-    html: `
+      // Email Receipt
+      const mailOptions = {
+        from: process.env.EMAIL,
+        to: order.email,
+        subject: "KB Cosmetics - Order Received",
+        html: `
       <h2>Thank you for your order, ${order.name}!</h2>
       <p>We have received your order.</p>
 
@@ -256,46 +235,50 @@ app.post("/payment", async (req, res) => {
       <br/>
       <p>KB Cosmetics Shop</p>
     `,
-  };
+      };
 
-  await transporter.sendMail(mailOptions);
+      await transporter.sendMail(mailOptions);
 
-  res.send({ success: true });
-});
+      res.send({ success: true });
+    });
 
+    // Get all orders (Admin)
+    app.get("/my-orders", verifyToken, async (req, res) => {
+      const email = req.query.email;
 
-// Get all orders (Admin)
-app.get("/orders", async (req, res) => {
-  const result = await paymentCollection
-    .find()
-    .sort({ date: -1 })
-    .toArray();
+      if (req.user.email !== email) {
+        return res.status(403).send({ message: "Forbidden" });
+      }
 
-  res.send(result);
-});
+      const orders = await paymentCollection
+        .find({ email })
+        .sort({ date: -1 })
+        .toArray();
 
+      res.send(orders);
+    });
 
-app.patch("/orders/:id", async (req, res) => {
-  const id = req.params.id;
-  const { status } = req.body;
+    app.patch("/orders/:id", async (req, res) => {
+      const id = req.params.id;
+      const { status } = req.body;
 
-  const filter = { _id: new ObjectId(id) };
-  const update = {
-    $set: { status: status },
-  };
+      const filter = { _id: new ObjectId(id) };
+      const update = {
+        $set: { status: status },
+      };
 
-  const result = await paymentCollection.updateOne(filter, update);
+      const result = await paymentCollection.updateOne(filter, update);
 
-  // order info
-  const order = await paymentCollection.findOne(filter);
+      // order info
+      const order = await paymentCollection.findOne(filter);
 
-  // Send confirmation email if approved
-  if (status === "approved") {
-    const mailOptions = {
-      from: process.env.EMAIL,
-      to: order.email,
-      subject: "KB Cosmetics - Payment Confirmed 🎉",
-      html: `
+      // Send confirmation email if approved
+      if (status === "approved") {
+        const mailOptions = {
+          from: process.env.EMAIL,
+          to: order.email,
+          subject: "KB Cosmetics - Payment Confirmed 🎉",
+          html: `
         <h2>Hello ${order.name}</h2>
         <p>Your payment has been successfully verified.</p>
 
@@ -308,18 +291,13 @@ app.patch("/orders/:id", async (req, res) => {
         <br/>
         <b>KB Cosmetics Shop</b>
       `,
-    };
+        };
 
-    await transporter.sendMail(mailOptions);
-  }
+        await transporter.sendMail(mailOptions);
+      }
 
-  res.send(result);
-});
-
-
-
-
-
+      res.send(result);
+    });
 
     // Send a ping to confirm a successful connection
     // await client.db("admin").command({ ping: 1 });
