@@ -313,13 +313,6 @@ async function run() {
     // backend/index.js
 
     const userCollection = client.db("adminDB").collection("users");
-
-    const admin = {
-      name: "Super Admin",
-      email: "kawsar121@gmail.com", // Firebase login এর email
-      role: "admin",
-    };
-    await userCollection.insertOne(admin);
     console.log("Admin added!");
     app.get("/admin/check-admin", verifyToken, async (req, res) => {
       const email = req.query.email;
