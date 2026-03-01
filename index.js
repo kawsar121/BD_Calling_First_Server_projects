@@ -347,7 +347,7 @@ async function run() {
 
     // Admin: Users
     app.get("/admin/users", verifyToken, verifyAdmin, async (req, res) => {
-      const result = await usersCollection.find().toArray();
+      const result = await userCollection.find().toArray();
       res.send(result);
     });
 
@@ -358,7 +358,7 @@ async function run() {
       async (req, res) => {
         const id = req.params.id;
         const update = { $set: req.body };
-        const result = await usersCollection.updateOne(
+        const result = await userCollection.updateOne(
           { _id: new ObjectId(id) },
           update,
         );
