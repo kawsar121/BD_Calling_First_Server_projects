@@ -98,7 +98,7 @@ async function run() {
           // secure: process.env.NODE_ENV === "production",
           // sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
           httpOnly: true,
-          secure: false,
+          secure: true,
           sameSite: "none",
           path: "/",
         })
