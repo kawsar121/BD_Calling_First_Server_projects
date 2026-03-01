@@ -44,7 +44,7 @@ An **e-commerce website** for buying and selling cosmetics products. Built with 
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/kawsar121/BD_Calling_First_Clients_projects.git
+git clone https://github.com/kawsar121/BD_Calling_First_Server_projects.git
 
 Install dependencies:
 
